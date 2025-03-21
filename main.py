@@ -17,7 +17,7 @@ last_detection_time = time.time()  # Timer for gesture sequence
 def unlock_laptop():
     # Using pyautogui to type the password
     time.sleep(1)  # Small delay to ensure proper execution
-    pyautogui.write("81849")  # Type the password
+    pyautogui.write("your_pcPassword")  # Type the password
     pyautogui.press("enter")  # Press Enter to unlock
 
     # Using nircmd (Commented Out)
