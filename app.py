@@ -86,7 +86,7 @@ def is_fist(landmarks):
 def unlock_laptop():
     try:
         time.sleep(1)
-        pyautogui.write("81849")
+        pyautogui.write("your_laptopPassword")
         pyautogui.press("enter")
         logger.info("Laptop unlocked successfully")
     except Exception as e:
