@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HandWave Unlock</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <header class="title-header">
+            <h1 data-text="HandWave Unlock">HandWave Unlock</h1>
+            <p class="subtitle">Unlock your laptop with hand gestures</p>
+        </header>
+
+        <main>
+            <div class="video-section">
+                <div id="video-container" class="video-container">
+                    <img id="video-feed" src="{{ url_for('video_feed') }}" alt="Video Feed">
+                </div>
+                <div class="controls">
+                    <button id="startBtn" class="btn btn-primary">Start Recognition</button>
+                    <button id="stopBtn" class="btn btn-danger" disabled>Stop Recognition</button>
+                </div>
+                <div id="status" class="status waiting">Click 'Start Recognition' to begin</div>
+                
+                <div class="troubleshooting-toggle">
+                    <button id="troubleshootBtn" class="btn btn-info">Camera Troubleshooting ▼</button>
+                </div>
+                
+                <div id="troubleshooting" class="troubleshooting">
+                    <h3>Camera Issues?</h3>
+                    <ol>
+                        <li><strong>Close other applications:</strong> Make sure Zoom, Teams, or other camera apps are closed</li>
+                        <li><strong>Restart browser:</strong> Sometimes closing and reopening your browser can fix camera access</li>
+                        <li><strong>Check permissions:</strong> Ensure your browser has permission to access your camera</li>
+                        <li><strong>Try a different browser:</strong> If Chrome doesn't work, try Firefox or Edge</li>
+                        <li><strong>Restart computer:</strong> A full restart can clear camera resources that are stuck</li>
+                        <li><strong>Update drivers:</strong> Make sure your camera drivers are up to date</li>
+                    </ol>
+                    <p class="note">If you're seeing the error "Camera connection successful but could not read frames", 
+                    this usually means another application has partially initialized your camera. 
+                    Try restarting your computer to fully release the camera resources.</p>
+                </div>
+            </div>
+
+            <div class="gesture-guide">
+                <h2>Gesture Guide</h2>
+                <p>Perform these gestures in sequence to unlock your laptop:</p>
+                <ol>
+                    <li>Peace Sign ✌️</li>
+                    <li>Open Hand ✋</li>
+                    <li>Fist 👊</li>
+                </ol>
+                <p class="note">Press ESC to stop recognition at any time</p>
+                
+                <div class="performance-tips">
+                    <h3>For Best Results:</h3>
+                    <ul>
+                        <li>Use good lighting on your hands</li>
+                        <li>Keep your hand centered in the frame</li>
+                        <li>Make clear, distinct gestures</li>
+                        <li>Hold each gesture for at least 1 second</li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+
+</html>
