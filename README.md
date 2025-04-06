@@ -14,7 +14,23 @@ Unlock your system using **hand gestures**! This project uses computer vision an
 
 ## 📂 Project Structure
 
-HandWave_Unlock/ │ ├── static/ │ ├── css/ │ │ └── style.css │ └── js/ │ └── main.js │ ├── templates/ │ └── (HTML files here) │ ├── app.py ├── main.py ├── requirements.txt └── README.md
+```
+HandWave_Unlock/
+│
+├── static/
+│   ├── css/
+│   │   └── style.css
+│   └── js/
+│       └── main.js
+│
+├── templates/
+│   └── (HTML files here)
+│
+├── app.py
+├── main.py
+├── requirements.txt
+└── README.md
+```
 
 ---
 
