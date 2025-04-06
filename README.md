@@ -11,6 +11,21 @@ Unlock your system using **hand gestures**! This project uses computer vision an
 - 🌐 Simple web interface using **Flask**
 
 ---
+## ✅ Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- 🐍 Python 3.6 or higher
+- 📦 pip (Python package manager)
+- 💻 Webcam (for gesture detection)
+- 🧰 Git (optional, for cloning the repo)
+
+Install the dependencies with:
+
+```bash
+pip install -r requirements.txt
+```
+---
 
 ## 📂 Project Structure
 
@@ -79,6 +94,15 @@ Set Start Command on Render:
 ```bash
 gunicorn main:app
 ```
+---
 
-🤝 Contributions
-Pull requests are welcome! Feel free to open an issue for feature suggestions or bugs.
+## 🔮 Future Improvements
+
+Here are a few ideas for improving the HandWave_Unlock project:
+
+- 🔐 **Advanced security** – Add face recognition along with hand gestures for dual authentication.
+- 🌐 **Web deployment** – Fully host the app online with live webcam streaming.
+- 📱 **Mobile support** – Build a mobile version using Flask + Android camera.
+- 🧠 **Gesture training** – Allow users to train and save their own custom gestures.
+- 🔊 **Voice assistant integration** – Add voice command recognition for multi-modal interaction.
+- 🎨 **Better UI** – Create a more polished and responsive front-end using React or modern CSS frameworks.
