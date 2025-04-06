@@ -83,6 +83,8 @@ python main.py
 ```bash
 http://localhost:5000
 ```
+---
+
 🖥️ Deployment (Render)
 Add gunicorn to requirements.txt:
 
@@ -106,3 +108,40 @@ Here are a few ideas for improving the HandWave_Unlock project:
 - 🧠 **Gesture training** – Allow users to train and save their own custom gestures.
 - 🔊 **Voice assistant integration** – Add voice command recognition for multi-modal interaction.
 - 🎨 **Better UI** – Create a more polished and responsive front-end using React or modern CSS frameworks.
+
+---
+
+## 🤝 Contributions
+
+Contributions are welcome and appreciated! 🎉
+
+If you'd like to contribute to **HandWave_Unlock**, please follow these steps:
+
+1. 🍴 Fork the repository  
+2. 👯 Clone your forked repo  
+```bash
+git clone https://github.com/your-username/HandWave_Unlock.git
+```
+3. 💡 Create a new branch  
+```bash
+git checkout -b feature/YourFeatureName
+```
+4. 🛠️ Make your changes  
+5. ✅ Commit your changes  
+```bash
+git commit -m "Add: Your meaningful commit message"
+```
+6. 🚀 Push to the branch  
+```bash
+git push origin feature/YourFeatureName
+```
+7. 📬 Open a Pull Request
+
+---
+
+### 💬 Need help?
+
+If you're stuck or have questions, feel free to open an [issue](https://github.com/balu-16/HandWave_Unlock/issues) or reach out!
+
+Let’s build something amazing together! 🧠💻✨
+
