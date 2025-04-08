@@ -2,7 +2,7 @@ from flask import Flask, render_template, Response, jsonify, request
 import cv2
 import mediapipe as mp
 import time
-import pyautogui
+# import pyautogui
 import threading
 import queue
 import logging
@@ -82,16 +82,16 @@ def is_all_fingers_open(landmarks):
 def is_fist(landmarks):
     return all(landmarks[tip].y > landmarks[joint].y for tip, joint in [(8, 6), (12, 10), (16, 14), (20, 18), (4, 2)])
 
-
-def unlock_laptop():
-    try:
-        time.sleep(1)
-        pyautogui.write("your_laptopPassword")
-        pyautogui.press("enter")
-        logger.info("Laptop unlocked successfully")
-    except Exception as e:
-        logger.error(f"Error unlocking laptop: {str(e)}")
-        gesture_status["message"] = "Error unlocking laptop"
+# I am commenting the unlocking part to deploy it in render
+# def unlock_laptop():
+#     try:
+#         time.sleep(1)
+#         pyautogui.write("your_laptopPassword")
+#         pyautogui.press("enter")
+#         logger.info("Laptop unlocked successfully")
+#     except Exception as e:
+#         logger.error(f"Error unlocking laptop: {str(e)}")
+#         gesture_status["message"] = "Error unlocking laptop"
 
 
 def process_gestures():
