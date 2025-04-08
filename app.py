@@ -83,15 +83,15 @@ def is_fist(landmarks):
     return all(landmarks[tip].y > landmarks[joint].y for tip, joint in [(8, 6), (12, 10), (16, 14), (20, 18), (4, 2)])
 
 # I am commenting the unlocking part to deploy it in render
-# def unlock_laptop():
-#     try:
-#         time.sleep(1)
-#         pyautogui.write("your_laptopPassword")
-#         pyautogui.press("enter")
-#         logger.info("Laptop unlocked successfully")
-#     except Exception as e:
-#         logger.error(f"Error unlocking laptop: {str(e)}")
-#         gesture_status["message"] = "Error unlocking laptop"
+def unlock_laptop():
+    try:
+        time.sleep(1)
+        pyautogui.write("your_laptopPassword")
+        pyautogui.press("enter")
+        logger.info("Laptop unlocked successfully")
+    except Exception as e:
+        logger.error(f"Error unlocking laptop: {str(e)}")
+        gesture_status["message"] = "Error unlocking laptop"
 
 
 def process_gestures():
