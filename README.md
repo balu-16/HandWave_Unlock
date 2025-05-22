@@ -139,9 +139,6 @@ git push origin feature/YourFeatureName
 
 ---
 
-### 💬 Need help?
-
-If you're stuck or have questions, feel free to open an [issue](https://github.com/balu-16/HandWave_Unlock/issues) or reach out!
-
-Let’s build something amazing together! 🧠💻✨
-
+## License
+This project is licensed as **proprietary and confidential**.  
+**You may not reuse, modify, or redistribute any part of this code.**
