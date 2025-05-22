@@ -1,0 +1,12 @@
+Copyright © 2025 Balarakesh Gundapaneni
+
+All Rights Reserved.
+
+This software and its source code are proprietary and confidential.  
+Unauthorized copying, modification, distribution, or use of any part of this code or its associated ideas, designs, or structure is strictly prohibited.
+
+This repository is for personal, educational, and demonstration purposes only.
+
+No part of this software may be reproduced or used in any manner without the express written permission of the author.
+
+For licensing inquiries, contact: balarakeshg16@gmail.com
