@@ -1,0 +1,9 @@
+How to run the code:
+
+First run the command prompt as administrator and go to the location where the code has been saved and run it as python app.py
+
+
+Future Improvements:
+
+Customizable Gestures: Allow users to set their own unique gestures for unlocking.
+Emergency Unlock Mode: Provide an alternative unlocking method in case of gesture detection failure.
