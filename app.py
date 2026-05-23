@@ -2,7 +2,7 @@ from flask import Flask, render_template, Response, jsonify, request
 import cv2
 import mediapipe as mp
 import time
-# import pyautogui
+import os
 import threading
 import queue
 import logging
@@ -82,11 +82,33 @@ def is_all_fingers_open(landmarks):
 def is_fist(landmarks):
     return all(landmarks[tip].y > landmarks[joint].y for tip, joint in [(8, 6), (12, 10), (16, 14), (20, 18), (4, 2)])
 
-# I am commenting the unlocking part to deploy it in render
 def unlock_laptop():
+    """Unlock laptop using environment-configured password.
+
+    Requires UNLOCK_PASSWORD environment variable to be set and
+    pyautogui to be installed. Both are optional -- if either is
+    missing the function logs a warning and returns gracefully.
+    """
+    password = os.environ.get("UNLOCK_PASSWORD", "")
+    if not password:
+        logger.warning(
+            "UNLOCK_PASSWORD not set -- skipping system unlock. "
+            "Set UNLOCK_PASSWORD env var to enable laptop unlock."
+        )
+        return
+
+    try:
+        import pyautogui
+    except ImportError:
+        logger.warning(
+            "pyautogui is not installed -- skipping system unlock. "
+            "Install pyautogui to enable laptop unlock."
+        )
+        return
+
     try:
         time.sleep(1)
-        pyautogui.write("your_laptopPassword")
+        pyautogui.write(password)
         pyautogui.press("enter")
         logger.info("Laptop unlocked successfully")
     except Exception as e:

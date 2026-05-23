@@ -42,7 +42,6 @@ HandWave_Unlock/
 │   └── (HTML files here)
 │
 ├── app.py
-├── main.py
 ├── requirements.txt
 └── README.md
 ```
@@ -76,7 +75,7 @@ pip install -r requirements.txt
 ▶️ Run the app
 
 ```bash
-python main.py
+python app.py
 ```
 🌐 Open in your browser
 
@@ -94,7 +93,7 @@ gunicorn==20.1.0
 Set Start Command on Render:
 
 ```bash
-gunicorn main:app
+gunicorn app:app
 ```
 ---
 
