@@ -2,11 +2,12 @@ from flask import Flask, render_template, Response, jsonify, request
 import cv2
 import mediapipe as mp
 import time
-# import pyautogui
+import os
+import sys
+import atexit
 import threading
 import queue
 import logging
-import sys
 import numpy as np
 
 # Configure logging
@@ -19,14 +20,22 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+# Thread lock for ALL shared mutable state
+_state_lock = threading.Lock()
+
 # Global variables
-gesture_sequence, attempts, success, last_gesture = [], 3, False, None
+gesture_sequence = []
+attempts = 3
+success = False
+last_gesture = None
 last_detection_time = time.time()
-frame_queue = queue.Queue()
+frame_queue = queue.Queue(maxsize=10)
 gesture_status = {"status": "waiting",
                   "message": "Click 'Start Recognition' to begin"}
-camera_error, is_recognition_active = False, False
-camera, gesture_thread = None, None
+camera_error = False
+is_recognition_active = False
+camera = None
+gesture_thread = None
 
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
@@ -34,28 +43,44 @@ mp_drawing = mp.solutions.drawing_utils
 
 def reset_recognition():
     global gesture_sequence, attempts, success, last_gesture, last_detection_time, gesture_status, camera_error, is_recognition_active
-    gesture_sequence, attempts, success = [], 3, False
-    last_gesture, last_detection_time = None, time.time()
-    gesture_status = {"status": "waiting",
-                      "message": "Click 'Start Recognition' to begin"}
-    camera_error, is_recognition_active = False, False
+    with _state_lock:
+        gesture_sequence = []
+        attempts = 3
+        success = False
+        last_gesture = None
+        last_detection_time = time.time()
+        gesture_status = {"status": "waiting",
+                          "message": "Click 'Start Recognition' to begin"}
+        camera_error = False
+        is_recognition_active = False
+    # Drain frame_queue outside lock to avoid holding it during queue ops
+    _drain_queue()
+
+
+def _drain_queue():
+    """Drain all items from frame_queue."""
+    try:
+        while True:
+            frame_queue.get_nowait()
+    except queue.Empty:
+        pass
 
 
 def release_camera():
     global camera
-    if camera is not None:
+    with _state_lock:
+        cam = camera
+        camera = None
+    if cam is not None:
         try:
-            camera.release()
+            cam.release()
             logger.info("Camera released")
         except Exception as e:
             logger.warning(f"Error releasing camera: {str(e)}")
-        finally:
-            camera = None
 
 
 def force_camera_release():
     """Release camera resources"""
-    global camera
     release_camera()
     cv2.destroyAllWindows()
     time.sleep(0.5)
@@ -82,16 +107,39 @@ def is_all_fingers_open(landmarks):
 def is_fist(landmarks):
     return all(landmarks[tip].y > landmarks[joint].y for tip, joint in [(8, 6), (12, 10), (16, 14), (20, 18), (4, 2)])
 
-# I am commenting the unlocking part to deploy it in render
 def unlock_laptop():
+    """Unlock laptop using environment-configured password.
+
+    Requires UNLOCK_PASSWORD environment variable to be set and
+    pyautogui to be installed. Both are optional -- if either is
+    missing the function logs a warning and returns gracefully.
+    """
+    password = os.environ.get("UNLOCK_PASSWORD", "")
+    if not password:
+        logger.warning(
+            "UNLOCK_PASSWORD not set -- skipping system unlock. "
+            "Set UNLOCK_PASSWORD env var to enable laptop unlock."
+        )
+        return
+
+    try:
+        import pyautogui
+    except ImportError:
+        logger.warning(
+            "pyautogui is not installed -- skipping system unlock. "
+            "Install pyautogui to enable laptop unlock."
+        )
+        return
+
     try:
         time.sleep(1)
-        pyautogui.write("your_laptopPassword")
+        pyautogui.write(password)
         pyautogui.press("enter")
         logger.info("Laptop unlocked successfully")
     except Exception as e:
         logger.error(f"Error unlocking laptop: {str(e)}")
-        gesture_status["message"] = "Error unlocking laptop"
+        with _state_lock:
+            gesture_status["message"] = "Error unlocking laptop"
 
 
 def process_gestures():
@@ -104,26 +152,39 @@ def process_gestures():
         logger.info("Starting gesture processing...")
         force_camera_release()  # Clean up any existing camera instance
 
+        # Platform detection for camera backend
+        if sys.platform == "win32":
+            camera_backends = [
+                lambda: cv2.VideoCapture(0, cv2.CAP_DSHOW),
+                lambda: cv2.VideoCapture(0)
+            ]
+        else:
+            camera_backends = [
+                lambda: cv2.VideoCapture(0, cv2.CAP_ANY),
+                lambda: cv2.VideoCapture(0)
+            ]
+
         # Try different camera initialization methods
-        for camera_init in [
-            lambda: cv2.VideoCapture(0, cv2.CAP_DSHOW),
-            lambda: cv2.VideoCapture(0)
-        ]:
+        for camera_init in camera_backends:
             try:
-                camera = camera_init()
+                cam = camera_init()
                 time.sleep(0.3)  # Give camera time to initialize
-                if camera and camera.isOpened():
+                if cam and cam.isOpened():
+                    with _state_lock:
+                        camera = cam
                     break
             except Exception as e:
                 logger.warning(f"Camera init method failed: {str(e)}")
 
         # Verify camera is working
-        if camera is None or not camera.isOpened():
+        with _state_lock:
+            cam = camera
+        if cam is None or not cam.isOpened():
             raise Exception(
                 "Could not open camera. Please make sure your camera is connected and not being used by another application.")
 
         # Try to get a test frame
-        ret, test_frame = camera.read()
+        ret, test_frame = cam.read()
         if not ret or test_frame is None or test_frame.size == 0:
             raise Exception(
                 "Camera connection successful but could not read frames. Try restarting your computer.")
@@ -137,7 +198,7 @@ def process_gestures():
             (cv2.CAP_PROP_AUTO_EXPOSURE, 1)
         ]:
             try:
-                camera.set(prop, value)
+                cam.set(prop, value)
             except Exception:
                 pass  # Continue if one property can't be set
 
@@ -145,7 +206,11 @@ def process_gestures():
         signal_frame = np.zeros((240, 320, 3), dtype=np.uint8)
         cv2.putText(signal_frame, "Camera Started", (90, 120),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-        frame_queue.put(signal_frame)
+        try:
+            frame_queue.put_nowait(signal_frame)
+        except queue.Full:
+            _drain_queue()
+            frame_queue.put_nowait(signal_frame)
 
         # Initialize MediaPipe with performance options
         with mp_hands.Hands(
@@ -155,24 +220,32 @@ def process_gestures():
             model_complexity=0
         ) as hands:
             # Update status
-            gesture_status["message"] = "Camera ready - show gestures"
+            with _state_lock:
+                gesture_status["message"] = "Camera ready - show gestures"
 
             # Processing variables
             skip_frames, frame_counter = 1, 0
             prev_frame_time = time.time()
 
             # Main processing loop
-            while is_recognition_active and not success and attempts > 0 and camera is not None:
-                # Check camera and capture frame
-                if not camera.isOpened():
-                    gesture_status.update(
-                        {"status": "error", "message": "Camera error: Camera was closed unexpectedly"})
+            while True:
+                # Check loop condition under lock
+                with _state_lock:
+                    if not is_recognition_active or success or attempts <= 0 or camera is None:
+                        break
+
+                # Check camera
+                if not cam.isOpened():
+                    with _state_lock:
+                        gesture_status.update(
+                            {"status": "error", "message": "Camera error: Camera was closed unexpectedly"})
                     break
 
-                ret, frame = camera.read()
+                ret, frame = cam.read()
                 if not ret or frame is None or frame.size == 0:
-                    gesture_status.update(
-                        {"status": "error", "message": "Camera error: Failed to grab frame"})
+                    with _state_lock:
+                        gesture_status.update(
+                            {"status": "error", "message": "Camera error: Failed to grab frame"})
                     break
 
                 # Update frame counters and timing
@@ -196,13 +269,17 @@ def process_gestures():
                         small_rgb = cv2.resize(rgb_frame, (160, 120))
                         results = hands.process(small_rgb)
 
+                        # Read gesture_sequence under lock for overlay
+                        with _state_lock:
+                            seq_snapshot = list(gesture_sequence)
+
                         # Add text overlays
-                        for idx, text in enumerate([
+                        for idx, text in [
                             ("Processing: Active", 30),
-                            (f"Gestures: {', '.join(gesture_sequence) if gesture_sequence else 'None'}", 60),
+                            (f"Gestures: {', '.join(seq_snapshot) if seq_snapshot else 'None'}", 60),
                             (f"FPS: {round(fps, 1)}", 90)
-                        ]):
-                            cv2.putText(output_frame, text[0], (85, text[1]),
+                        ]:
+                            cv2.putText(output_frame, text, (85, idx),
                                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1, cv2.LINE_AA)
 
                         # Process detected hands
@@ -229,45 +306,47 @@ def process_gestures():
                                                         if detected), None)
 
                                 # Update sequence if new gesture detected
-                                if current_gesture and current_gesture != last_gesture:
-                                    gesture_sequence.append(current_gesture)
-                                    gesture_status["message"] = f"{current_gesture.capitalize()} Gesture Detected"
+                                with _state_lock:
+                                    if current_gesture and current_gesture != last_gesture:
+                                        gesture_sequence.append(current_gesture)
+                                        gesture_status["message"] = f"{current_gesture.capitalize()} Gesture Detected"
+                                        last_gesture = current_gesture
 
-                                    # Display detected gesture
-                                    gesture_indicator = f"DETECTED: {current_gesture.upper()}"
-                                    text_size = cv2.getTextSize(
-                                        gesture_indicator, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)[0]
-                                    text_x = (
-                                        output_frame.shape[1] - text_size[0]) // 2
-                                    cv2.putText(output_frame, gesture_indicator, (text_x, 20),
-                                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1, cv2.LINE_AA)
+                                        # Display detected gesture
+                                        gesture_indicator = f"DETECTED: {current_gesture.upper()}"
+                                        text_size = cv2.getTextSize(
+                                            gesture_indicator, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)[0]
+                                        text_x = (
+                                            output_frame.shape[1] - text_size[0]) // 2
+                                        cv2.putText(output_frame, gesture_indicator, (text_x, 20),
+                                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1, cv2.LINE_AA)
 
-                                    last_gesture = current_gesture
-                                    logger.info(
-                                        f"Detected gesture: {current_gesture}")
+                                        logger.info(
+                                            f"Detected gesture: {current_gesture}")
 
-                                # Check for successful sequence
-                                if len(gesture_sequence) >= 3 and set(gesture_sequence[-3:]) == {"peace", "open", "fist"}:
-                                    gesture_status.update(
-                                        {"status": "success", "message": "✅ Gesture Matched! Unlocking Laptop..."})
-                                    success = True
-                                    unlock_laptop()
-                                    break
+                                    # Check for successful sequence
+                                    if len(gesture_sequence) >= 3 and set(gesture_sequence[-3:]) == {"peace", "open", "fist"}:
+                                        gesture_status.update(
+                                            {"status": "success", "message": "✅ Gesture Matched! Unlocking Laptop..."})
+                                        success = True
+                                        unlock_laptop()
+                                        break
 
-                                last_detection_time = time.time()
+                                    last_detection_time = time.time()
 
                         # Reset if user takes too long
-                        if time.time() - last_detection_time > 5 and len(gesture_sequence) < 3:
-                            attempts -= 1
-                            gesture_status["message"] = f"Attempts remaining: {attempts}"
-                            gesture_sequence.clear()
-                            last_gesture = None
-                            last_detection_time = time.time()
+                        with _state_lock:
+                            if time.time() - last_detection_time > 5 and len(gesture_sequence) < 3:
+                                attempts -= 1
+                                gesture_status["message"] = f"Attempts remaining: {attempts}"
+                                gesture_sequence.clear()
+                                last_gesture = None
+                                last_detection_time = time.time()
 
-                            if attempts == 0:
-                                gesture_status.update(
-                                    {"status": "error", "message": "❌ Maximum attempts reached. Access Denied."})
-                                break
+                                if attempts == 0:
+                                    gesture_status.update(
+                                        {"status": "error", "message": "❌ Maximum attempts reached. Access Denied."})
+                                    break
 
                     except Exception as e:
                         logger.error(f"Error processing frame: {str(e)}")
@@ -277,17 +356,30 @@ def process_gestures():
                     logger.info(
                         f"Camera running at {fps:.2f} FPS, processed {frame_count} frames")
 
-                frame_queue.put(output_frame)
+                try:
+                    frame_queue.put_nowait(output_frame)
+                except queue.Full:
+                    # Drop oldest frame to make room
+                    try:
+                        frame_queue.get_nowait()
+                    except queue.Empty:
+                        pass
+                    try:
+                        frame_queue.put_nowait(output_frame)
+                    except queue.Full:
+                        pass
 
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Error in process_gestures: {error_msg}")
-        camera_error = True
-        gesture_status.update(
-            {"status": "error", "message": f"Error accessing camera: {error_msg}"})
+        with _state_lock:
+            camera_error = True
+            gesture_status.update(
+                {"status": "error", "message": f"Error accessing camera: {error_msg}"})
     finally:
         release_camera()
-        is_recognition_active = False
+        with _state_lock:
+            is_recognition_active = False
         logger.info("Gesture processing ended")
 
 
@@ -339,7 +431,9 @@ def generate_frames():
 
         except queue.Empty:
             # Return default frame if queue is empty and recognition not active
-            if not is_recognition_active:
+            with _state_lock:
+                active = is_recognition_active
+            if not active:
                 yield default_frame_data
         except Exception as e:
             logger.error(f"Error in generate_frames: {str(e)}")
@@ -359,19 +453,25 @@ def video_feed():
 
 @app.route('/gesture_status')
 def get_gesture_status():
-    return jsonify(gesture_status)
+    with _state_lock:
+        return jsonify(dict(gesture_status))
 
 
 @app.route('/start_recognition', methods=['POST'])
 def start_recognition():
     global is_recognition_active, gesture_thread
 
+    with _state_lock:
+        active = is_recognition_active
+        thread = gesture_thread
+
     # Ensure previous resources are cleaned up
-    if gesture_thread and gesture_thread.is_alive():
+    if thread and thread.is_alive():
         logger.info("Previous gesture thread still running, stopping it first")
-        is_recognition_active = False
+        with _state_lock:
+            is_recognition_active = False
         try:
-            gesture_thread.join(timeout=2.0)
+            thread.join(timeout=2.0)
         except Exception as e:
             logger.warning(f"Error joining previous thread: {str(e)}")
 
@@ -380,12 +480,15 @@ def start_recognition():
     # Start recognition
     try:
         reset_recognition()
-        is_recognition_active = True
-        gesture_status["message"] = "Initializing camera..."
+        with _state_lock:
+            is_recognition_active = True
+            gesture_status["message"] = "Initializing camera..."
 
-        gesture_thread = threading.Thread(target=process_gestures)
-        gesture_thread.daemon = True
-        gesture_thread.start()
+        new_thread = threading.Thread(target=process_gestures)
+        new_thread.daemon = True
+        new_thread.start()
+        with _state_lock:
+            gesture_thread = new_thread
 
         time.sleep(0.5)  # Brief wait for camera initialization
         logger.info("Recognition thread started")
@@ -393,19 +496,26 @@ def start_recognition():
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Error starting recognition: {error_msg}")
-        is_recognition_active = False
-        gesture_status.update(
-            {"status": "error", "message": f"Error starting recognition: {error_msg}"})
+        with _state_lock:
+            is_recognition_active = False
+            gesture_status.update(
+                {"status": "error", "message": f"Error starting recognition: {error_msg}"})
         return jsonify({"status": "error", "message": f"Failed to start recognition: {error_msg}"})
 
 
 @app.route('/stop_recognition', methods=['POST'])
 def stop_recognition():
     global is_recognition_active, gesture_thread
-    if is_recognition_active:
-        is_recognition_active = False
-        if gesture_thread and gesture_thread.is_alive():
-            gesture_thread.join(timeout=1.0)
+    with _state_lock:
+        active = is_recognition_active
+        thread = gesture_thread
+
+    if active:
+        with _state_lock:
+            is_recognition_active = False
+        if thread and thread.is_alive():
+            thread.join(timeout=2.0)
+        _drain_queue()
         release_camera()
         reset_recognition()
         return jsonify({"status": "success", "message": "Recognition stopped"})
@@ -417,10 +527,29 @@ def cleanup(error):
     if error is not None:
         logger.info(f"Application context teardown with error: {error}")
         global is_recognition_active, gesture_thread
-        is_recognition_active = False
-        if gesture_thread and gesture_thread.is_alive():
-            gesture_thread.join(timeout=1.0)
+        with _state_lock:
+            is_recognition_active = False
+            thread = gesture_thread
+        if thread and thread.is_alive():
+            thread.join(timeout=1.0)
         force_camera_release()
+
+
+def _shutdown_cleanup():
+    """Cleanup handler for process exit."""
+    global is_recognition_active, gesture_thread
+    logger.info("Process exiting — cleaning up resources")
+    with _state_lock:
+        is_recognition_active = False
+        thread = gesture_thread
+    if thread and thread.is_alive():
+        thread.join(timeout=3.0)
+    _drain_queue()
+    release_camera()
+    cv2.destroyAllWindows()
+
+
+atexit.register(_shutdown_cleanup)
 
 
 if __name__ == '__main__':
